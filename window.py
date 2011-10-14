@@ -8,21 +8,20 @@ from curses.panel import new_panel, top_panel, update_panels
 
 class Window(object):
   AUTO_SCROLL = 0
-  def __init__(self, callback, win=None, parent=None, pos=AUTO_SCROLL):
+  def __init__(self, callback=None, win=None, parent=None, pos=AUTO_SCROLL):
     
-    # exactly one of win or parent should be none
-    assert bool(win) != bool(parent)
-
     # If there is a parent, ask it for our window
     self.parent = parent
     if parent:
       self.win = parent._subwin()
 
-    # otherwise, we're the root, so use the window provided
+    # just kidding, we might have also been given a window
     if win:
       self.win = win
 
     self.pos = pos
+    if not callback:
+      callback = lambda: []
     self.callback = callback
 
   def scroll_up(self):
@@ -80,8 +79,8 @@ class BorderWin(Window):
     "bottom" : lambda y, x: (y-1, x),
   }
 
-  def __init__(self, c, borders=None, **kwarg):
-    Window.__init__(self, c, **kwarg)
+  def __init__(self, borders=None, **kwarg):
+    Window.__init__(self, **kwarg)
     d = defaultdict(lambda: ' ')
     self.xmod, self.ymod = 0, 0
     if borders:
@@ -109,6 +108,20 @@ class DividableWin(Window):
     for child in self.children:
       child.update()
     Window.update(self)
+
+  def div(self, left_cell_width):
+    (y, x) = self.getmaxyx()
+    assert left_cell_width < x
+
+    # make the curses windows
+    l = self.win.subwin(y, left_cell_width, 0, 0)
+    r = self.win.subwin(y, x - left_cell_width, 0, left_cell_width)
+
+    # now set up the borders
+    bl = BorderWin(win=l, parent=self)
+    br = BorderWin(win=r, parent=self)
+
+    # kill our callback since presumably the children will be painting
 
 class StackWin(Window):
   def __init__(self, *arg, **kwarg):
@@ -156,7 +169,7 @@ if __name__ == '__main__':
     windows = []
     for i in xrange(10):
       c = lambda: ['the quick brown fox jumped over the lazy dog', str(i)]
-      w = Window(c, win=curses.newwin(30, 30, 0,0))
+      w = Window(callback=c, win=curses.newwin(30, 30, 0,0))
       w.update()
       p = new_panel(w.win)
       p.set_userptr(w)
@@ -175,7 +188,7 @@ if __name__ == '__main__':
 
   def g(stdscr):
     c = lambda: ["you should see a border on the bottom and left"]
-    w = BorderWin(c, borders=["left", "bottom"], win=stdscr)
+    w = BorderWin(callback=c, borders=["left", "bottom"], win=stdscr)
     w.update()
     stdscr.getch()
 
