@@ -4,21 +4,42 @@ from textwrap import wrap
 from curses.panel import new_panel, top_panel, update_panels
 
 class Window(object):
+  AUTO_SCROLL = -1
   def __init__(self, win, histlen=1000, nlpadding="   "):
     self.win = win
     self.histlen = histlen
     self.nlpadding = nlpadding
     self.history = []
+    self.pos = AUTO_SCROLL
 
   def add(self, s):
     self.history.append(s)
     self.history = self.history[-self.histlen:]
 
+  def scroll_up(self):
+    if self.pos == AUTO_SCROLL:
+      self.pos = len(self.history) - 1
+    if self.pos != 1:
+      self.pos -= 1
+
+  def scroll_down(self):
+    if self.pos != AUTO_SCROLL:
+      self.pos += 1
+    if self.pos == len(self.history):
+      self.pos = AUTO_SCROLL
+
+  def scroll_lock(self):
+    self.pos = AUTO_SCROLL
+
   def update(self):
     (rows, cols) = self.getmaxyx()
 
+    hist = self.history
+    if self.pos != AUTO_SCROLL:
+      hist = self.history[:pos]
+
     # Wrap each message correctly
-    lines = list(itertools.chain(*map(lambda s: "\n   ".join(wrap(s, rows)), self.history)))
+    lines = list(itertools.chain(*map(lambda s: "\n   ".join(wrap(s, rows)), hist)))
     # we can only print up to rows number of lines
     lines = lines[-rows:]
 
@@ -35,8 +56,8 @@ if __name__ == '__main__':
     windows = []
     for i in xrange(10):
       w = Window(curses.newwin(30, 30, 0,0))
-      w.history.append(str(i))
-      w.history.append('the quick brown fox jumped over the lazy dog')
+      w.add(str(i))
+      w.add('the quick brown fox jumped over the lazy dog')
       w.update()
       p = new_panel(w.win)
       p.set_userptr(w)
