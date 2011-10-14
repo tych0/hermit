@@ -5,12 +5,12 @@ from curses.panel import new_panel, top_panel, update_panels
 
 class Window(object):
   AUTO_SCROLL = -1
-  def __init__(self, win, histlen=1000, nlpadding="   "):
+  def __init__(self, win, histlen=1000, nlpadding="   ", pos=AUTO_SCROLL):
     self.win = win
     self.histlen = histlen
     self.nlpadding = nlpadding
     self.history = []
-    self.pos = AUTO_SCROLL
+    self.pos = pos
 
   def add(self, s):
     self.history.append(s)
