@@ -1,12 +1,27 @@
 import curses
 import itertools
+
+from collections import defaultdict
+
 from textwrap import wrap
 from curses.panel import new_panel, top_panel, update_panels
 
 class Window(object):
   AUTO_SCROLL = 0
-  def __init__(self, win, callback, pos=AUTO_SCROLL):
-    self.win = win
+  def __init__(self, callback, win=None, parent=None, pos=AUTO_SCROLL):
+    
+    # exactly one of win or parent should be none
+    assert bool(win) != bool(parent)
+
+    # If there is a parent, ask it for our window
+    if parent:
+      self.parent = parent
+      self.win = parent._subwin()
+
+    # otherwise, we're the root, so use the window provided
+    if not win:
+      self.win = win
+
     self.pos = pos
     self.callback = callback
 
@@ -36,32 +51,71 @@ class Window(object):
       self.win.addstr(row, 0, line) 
       self.win.clrtoeol()
 
+    if self.parent:
+      self.parent.update()
+
   def getmaxyx(self):
     return self.win.getmaxyx()
 
-  def subwin(self):
+  def _subwin(self):
     """ Make a subwindow of this one that is the "size" it should be (i.e.
     self.getmaxyx()) """
     (y, x) = self.getmaxyx()
-    return self.win.subwin(y, y)
+    return self.win.subwin(y, x)
 
-class MainWin(Window):
-  def __init__(self, *arg, **kwarg):
-    Window.__init__(self, *arg, **kwarg)
-    self.panelstack = []
+class BorderWin(Window):
+  # only support bottom and left borders for now
+  BORDER_SPEC = {
+    "left"   : { "ls" : curses.ACS_VLINE,
+                 "bl" : '*',
+               },
+    "bottom" : { "bs" : curses.ACS_VLINE,
+                 "bl" : '*',
+                 "br" : '*',
+               },
+  }
+
+  MOD_SPEC = {
+    "left"   : lambda (y, x): (y, x-1),
+    "bottom" : lambda (y, x): (y-1, x),
+  }
+
+  def __init__(self, borders=None, *args, **kwarg):
+    Window.__init__(self, *args, **kwarg)
+    d = defaultdict(lambda: ' ')
+    self.xmod, self.ymod = 0, 0
+    if borders:
+      for border in borders:
+        d.update(BORDER_SPEC[border])
+        self.ymod, self.xmod = MOD_SPEC[border](self.ymod, self.xmod)
+    self.border = d
 
   def getmaxyx(self):
     (y, x) = self.win.getmaxyx()
     # leave room for the status bar
-    return (y-1, x)
-  
-  def update(self):
-    # here, we want to know the actual window size, not the fake window size,
-    # since we're drawing the status bar.
-    (y, x) = self.win.getmaxyx()
-    form = '{:-^'+str(x-1)+'}'
-    self.win.addstr(y-1, 0, form.format(''))
+    return (y + self.ymod, x + self.xmod)
 
+  def update(self):
+    self.win.border(d['ls'], d['rs'], d['ts'], d['bs'],
+                    d['tl'], d['tr'], d['bl'], d['br'])
+    Window.update(self)
+
+class DividableWin(Window):
+  def __init__(self, *args, **kwargs):
+    Window.__init__(self, *args, **kwargs)
+    self.children = []
+
+  def update(self):
+    for child in self.children:
+      child.update()
+    Window.update(self)
+
+class StackWin(Window):
+  def __init__(self, *arg, **kwarg):
+    Window.__init__(self, *arg, **kwarg)
+    self.panelstack = []
+
+  def update(self):
     # Perhaps the panels changed, we should reflect that.
     update_panels()
 
