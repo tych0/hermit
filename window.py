@@ -14,12 +14,12 @@ class Window(object):
     assert bool(win) != bool(parent)
 
     # If there is a parent, ask it for our window
+    self.parent = parent
     if parent:
-      self.parent = parent
       self.win = parent._subwin()
 
     # otherwise, we're the root, so use the window provided
-    if not win:
+    if win:
       self.win = win
 
     self.pos = pos
@@ -66,29 +66,29 @@ class Window(object):
 class BorderWin(Window):
   # only support bottom and left borders for now
   BORDER_SPEC = {
-    "left"   : { "ls" : curses.ACS_VLINE,
+    "left"   : { "ls" : 0,
                  "bl" : '*',
                },
-    "bottom" : { "bs" : curses.ACS_VLINE,
+    "bottom" : { "bs" : 0,
                  "bl" : '*',
                  "br" : '*',
                },
   }
 
   MOD_SPEC = {
-    "left"   : lambda (y, x): (y, x-1),
-    "bottom" : lambda (y, x): (y-1, x),
+    "left"   : lambda y, x: (y, x-1),
+    "bottom" : lambda y, x: (y-1, x),
   }
 
-  def __init__(self, borders=None, *args, **kwarg):
-    Window.__init__(self, *args, **kwarg)
+  def __init__(self, c, borders=None, **kwarg):
+    Window.__init__(self, c, **kwarg)
     d = defaultdict(lambda: ' ')
     self.xmod, self.ymod = 0, 0
     if borders:
       for border in borders:
-        d.update(BORDER_SPEC[border])
-        self.ymod, self.xmod = MOD_SPEC[border](self.ymod, self.xmod)
-    self.border = d
+        d.update(BorderWin.BORDER_SPEC[border])
+        self.ymod, self.xmod = BorderWin.MOD_SPEC[border](self.ymod, self.xmod)
+    self._b = d
 
   def getmaxyx(self):
     (y, x) = self.win.getmaxyx()
@@ -96,8 +96,8 @@ class BorderWin(Window):
     return (y + self.ymod, x + self.xmod)
 
   def update(self):
-    self.win.border(d['ls'], d['rs'], d['ts'], d['bs'],
-                    d['tl'], d['tr'], d['bl'], d['br'])
+    self.win.border(self._b['ls'], self._b['rs'], self._b['ts'], self._b['bs'],
+                    self._b['tl'], self._b['tr'], self._b['bl'], self._b['br'])
     Window.update(self)
 
 class DividableWin(Window):
@@ -156,7 +156,7 @@ if __name__ == '__main__':
     windows = []
     for i in xrange(10):
       c = lambda: ['the quick brown fox jumped over the lazy dog', str(i)]
-      w = Window(curses.newwin(30, 30, 0,0), c)
+      w = Window(c, win=curses.newwin(30, 30, 0,0))
       w.update()
       p = new_panel(w.win)
       p.set_userptr(w)
@@ -174,8 +174,8 @@ if __name__ == '__main__':
       p.userptr().update()
 
   def g(stdscr):
-    c = lambda: ["you should see a status bar at the bottom"]
-    w = MainWin(stdscr, c)
+    c = lambda: ["you should see a border on the bottom and left"]
+    w = BorderWin(c, borders=["left", "bottom"], win=stdscr)
     w.update()
     stdscr.getch()
 
