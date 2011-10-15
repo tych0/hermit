@@ -62,7 +62,65 @@ class Window(object):
     (y, x) = self.getmaxyx()
     return self.win.subwin(y, x)
 
-class BorderWin(Window):
+class DividableWin(Window):
+  def __init__(self, *args, **kwargs):
+    Window.__init__(self, *args, **kwargs)
+    self.children = []
+
+  def update(self):
+    for child in self.children:
+      child.update()
+    Window.update(self)
+
+  def div(self, left_cell_width):
+    (y, x) = self.getmaxyx()
+    assert left_cell_width < x
+
+    # make the curses windows
+    l = self.win.subwin(y, left_cell_width, 0, 0)
+    r = self.win.subwin(y, x - left_cell_width, 0, left_cell_width)
+
+    # now set up the borders
+    bl = DividableWin(win=l, parent=self)
+    br = BorderWin(win=r, parent=self, border=["left"])
+
+    # kill our callback since presumably the children will be painting
+    self.callback = None
+
+    # we have children
+    self.children = self.children + [bl,br]
+
+    return (bl, br)
+
+  def sp(self):
+    (y, x) = self.getmaxyx()
+    return self.div(x/2)
+
+  def vdiv(self, top_cell_length):
+    (y, x) = self.getmaxyx()
+    assert top_cell_length < y
+
+    # make the curses windows
+    t = self.win.subwin(top_cell_length, x, 0, 0)
+    b = self.win.subwin(y - top_cell_length, x, top_cell_length, 0)
+    
+    # now set up the borders
+    bt = DivisableWin(win=t, parent=self)
+    bb = BorderWin(win=b, parent=self, border=["top"])
+
+    # kill our callback since presumably the children will be painting
+    self.callback = None
+
+    # we have children
+    self.children = self.children + [bt,bb]
+
+    return (bt, bb)
+
+  def vsp(self):
+    (y, x) = self.getmaxyx()
+    return self.vdiv(y/2)
+
+class BorderWin(DividableWin):
   # only support bottom and left borders for now
   BORDER_SPEC = {
     "left"   : { "ls" : 0,
@@ -71,6 +129,10 @@ class BorderWin(Window):
     "bottom" : { "bs" : 0,
                  "bl" : '*',
                  "br" : '*',
+               },
+    "top"    : { "ts" : 0,
+                 "tl" : '*',
+                 "tr" : '*',
                },
   }
 
@@ -97,31 +159,7 @@ class BorderWin(Window):
   def update(self):
     self.win.border(self._b['ls'], self._b['rs'], self._b['ts'], self._b['bs'],
                     self._b['tl'], self._b['tr'], self._b['bl'], self._b['br'])
-    Window.update(self)
-
-class DividableWin(Window):
-  def __init__(self, *args, **kwargs):
-    Window.__init__(self, *args, **kwargs)
-    self.children = []
-
-  def update(self):
-    for child in self.children:
-      child.update()
-    Window.update(self)
-
-  def div(self, left_cell_width):
-    (y, x) = self.getmaxyx()
-    assert left_cell_width < x
-
-    # make the curses windows
-    l = self.win.subwin(y, left_cell_width, 0, 0)
-    r = self.win.subwin(y, x - left_cell_width, 0, left_cell_width)
-
-    # now set up the borders
-    bl = BorderWin(win=l, parent=self)
-    br = BorderWin(win=r, parent=self)
-
-    # kill our callback since presumably the children will be painting
+    DividableWin.update(self)
 
 class StackWin(Window):
   def __init__(self, *arg, **kwarg):
