@@ -63,25 +63,80 @@ class Window(object):
     return self.win.subwin(y, x)
 
 class DividableWin(Window):
+  VERTICAL = "v"
+  HORIZONTAL = "h"
   def __init__(self, *args, **kwargs):
-    Window.__init__(self, *args, **kwargs)
     self.children = []
+    self.splitdir = None
+    self.active = None
+    self.static_size = False
+    if "static_size" in kwargs:
+      self.static_size = kwargs["static_size"]
+      del kwargs["static_size"]
+    Window.__init__(self, *args, **kwargs)
 
   def update(self):
     for child in self.children:
       child.update()
     Window.update(self)
 
+  def wup(self):
+    if self.splitdir == HORIZONTAL:
+      self.active = (self.active - 1) % len(children)
+    else:
+      self.children[active].wup()
+
+  def wdn(self):
+    if self.splitdir == HORIZONTAL:
+      self.active = (self.active + 1) % len(children)
+    else:
+      self.children[active].wdn()
+
+  def wlf(self):
+    if self.splitdir == VERTICAL:
+      self.active = (self.active - 1) % len(children)
+    else:
+      self.children[active].wlf()
+
+  def wrt(self):
+    if self.splitdir == VERTICAL:
+      self.active = (self.active + 1) % len(children)
+    else:
+      self.children[active].wrt()
+
+  def _resize(self):
+    pass
+
+  def _addwin(self, win):
+    # if we're "splitting", we need to make two windows initially, since we're
+    # acting as the first child right now
+    if len(children) == 0:
+      w = DividableWin(parent=self)
+
+      # pass on our duties
+      w.callback = self.callback
+      self.callback = None
+      self.children.append(w)
+
+    # add the new window 
+    self.children.append(win)
+    self._resize()
+
   def div(self, left_cell_width):
+    """ Divide an empty dividable to have a cell of static size and another
+    window. Right now you can only do this on an undivided window. """
     (y, x) = self.getmaxyx()
     assert left_cell_width < x
+
+    # XXX: Refactor so this isn't required.
+    assert len(self.children) == 0
 
     # make the curses windows
     l = self.win.subwin(y, left_cell_width, 0, 0)
     r = self.win.subwin(y, x - left_cell_width, 0, left_cell_width)
 
     # now set up the borders
-    bl = DividableWin(win=l, parent=self)
+    bl = DividableWin(win=l, parent=self, static_size=True)
     br = BorderWin(win=r, parent=self, border=["left"])
 
     # kill our callback since presumably the children will be painting
@@ -93,20 +148,29 @@ class DividableWin(Window):
     return (bl, br)
 
   def sp(self):
-    (y, x) = self.getmaxyx()
-    return self.div(x/2)
+    """ Split the current window. """
+    if self.splitdir and self.splitdir != HORIZONTAL:
+      return self.active.sp()
+    self.splitdir = HORIZONTAL
+
+    # make the new window 
+    w = BorderWin(parent=self, borders=["left"])
+    self._addwin(w)
+    return w
 
   def vdiv(self, top_cell_length):
     (y, x) = self.getmaxyx()
     assert top_cell_length < y
+    # XXX: Refactor so this isn't required.
+    assert len(self.children) == 0
 
     # make the curses windows
     t = self.win.subwin(top_cell_length, x, 0, 0)
     b = self.win.subwin(y - top_cell_length, x, top_cell_length, 0)
     
     # now set up the borders
-    bt = DivisableWin(win=t, parent=self)
-    bb = BorderWin(win=b, parent=self, border=["top"])
+    bt = BorderWin(win=t, parent=self, border=["bottom"], static_size=True)
+    bb = DividableWin(win=b, parent=self)
 
     # kill our callback since presumably the children will be painting
     self.callback = None
@@ -117,8 +181,14 @@ class DividableWin(Window):
     return (bt, bb)
 
   def vsp(self):
-    (y, x) = self.getmaxyx()
-    return self.vdiv(y/2)
+    """ Split the current window vertically. """
+    if self.splitdir and self.splitdir != VERTICAL:
+      return self.active.sp()
+    self.splitdir = VERTICAL
+
+    w = BorderWin(parent=self, borders=["top"])
+    self._addwin(w)
+    return w
 
 class BorderWin(DividableWin):
   # only support bottom and left borders for now
