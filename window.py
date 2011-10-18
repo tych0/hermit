@@ -81,31 +81,82 @@ class DividableWin(Window):
     Window.update(self)
 
   def wup(self):
-    if self.splitdir == HORIZONTAL:
+    if self.splitdir == DividableWin.HORIZONTAL:
       self.active = (self.active - 1) % len(children)
     else:
       self.children[active].wup()
 
   def wdn(self):
-    if self.splitdir == HORIZONTAL:
+    if self.splitdir == DividableWin.HORIZONTAL:
       self.active = (self.active + 1) % len(children)
     else:
       self.children[active].wdn()
 
   def wlf(self):
-    if self.splitdir == VERTICAL:
+    if self.splitdir == DividableWin.VERTICAL:
       self.active = (self.active - 1) % len(children)
     else:
       self.children[active].wlf()
 
   def wrt(self):
-    if self.splitdir == VERTICAL:
+    if self.splitdir == DividableWin.VERTICAL:
       self.active = (self.active + 1) % len(children)
     else:
       self.children[active].wrt()
 
   def _resize(self):
-    pass
+    """ Resize all the windows (and their children) appropriately. This
+    includes respecting things that are statically sized. """
+
+    if len(self.children) == 0:
+      return
+
+    (y, x) = self.getmaxyx()
+    
+    def partition(f, it):
+      result = {}
+      for i in it:
+        result.setdefault(f(i), []).append(i) 
+      return result
+
+    p = partition(lambda w: w.static_size, self.children)
+    ssize_wins = p[True]
+    dsize_wins = p[False]
+
+    def size_getter(w):
+      (wy, wx) = w.getmaxyx()
+      if self.splitdir == DividableWin.VERTICAL:
+        return wx
+      else:
+        return wy
+    diff = sum(map(static_size_getter, ssize_wins))
+
+    if self.splitdir == DividableWin.VERTICAL:
+      pixels_left = x - diff
+      cur_y, cur_x = 0, diff
+    else:
+      pixels_left = y - diff
+      cur_y, cur_x = diff, 0
+
+    inc = pixels_left / len(dsize_wins)
+
+    # for the intermediate windows, make their sizes as calculated
+    for w in dsize_wins[:-1]:
+      w.win.mvwin(cur_y, cur_x)
+      if self.splitdir == DividableWin.VERTICAL:
+        w.win.resize(y, inc)
+        cur_x += inc
+      else:
+        w.win.resize(inc, x)
+        cur_y += inc
+
+    # for the last window, make it fell the rest of the canvas
+    w = dsize_wins[-1]
+    w.win.mvwin(cur_y, cur_x)
+    if self.splitdir == DividableWin.VERTICAL:
+      w.win.resize(y, pixels_left - cur_x)
+    else:
+      w.win.resize(pixels_left - cur_y, x)
 
   def _addwin(self, win):
     # if we're "splitting", we need to make two windows initially, since we're
@@ -117,6 +168,7 @@ class DividableWin(Window):
       w.callback = self.callback
       self.callback = None
       self.children.append(w)
+      self.active = 0
 
     # add the new window 
     self.children.append(win)
@@ -149,9 +201,9 @@ class DividableWin(Window):
 
   def sp(self):
     """ Split the current window. """
-    if self.splitdir and self.splitdir != HORIZONTAL:
+    if self.splitdir and self.splitdir != DividableWin.HORIZONTAL:
       return self.active.sp()
-    self.splitdir = HORIZONTAL
+    self.splitdir = DividableWin.HORIZONTAL
 
     # make the new window 
     w = BorderWin(parent=self, borders=["left"])
@@ -182,9 +234,9 @@ class DividableWin(Window):
 
   def vsp(self):
     """ Split the current window vertically. """
-    if self.splitdir and self.splitdir != VERTICAL:
+    if self.splitdir and self.splitdir != DividableWin.VERTICAL:
       return self.active.sp()
-    self.splitdir = VERTICAL
+    self.splitdir = DividableWin.VERTICAL
 
     w = BorderWin(parent=self, borders=["top"])
     self._addwin(w)
@@ -212,7 +264,7 @@ class BorderWin(DividableWin):
   }
 
   def __init__(self, borders=None, **kwarg):
-    Window.__init__(self, **kwarg)
+    DividableWin.__init__(self, **kwarg)
     d = defaultdict(lambda: ' ')
     self.xmod, self.ymod = 0, 0
     if borders:
@@ -300,5 +352,19 @@ if __name__ == '__main__':
     w.update()
     stdscr.getch()
 
-  curses.wrapper(f)
-  curses.wrapper(g)
+  def h(stdscr):
+    c = lambda: ["divide four ways"]
+    w = DividableWin(callback=c, win=stdscr)
+    w.update()
+    stdscr.getch()
+    w.sp()
+    stdscr.getch()
+    w.vsp()
+    stdscr.getch()
+
+  tests = [f,g,h]
+  for test in tests:
+    def clear(stdscr):
+      test(stdscr)
+      stdscr.clear()
+    curses.wrapper(clear)
