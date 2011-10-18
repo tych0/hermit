@@ -6,6 +6,9 @@ from collections import defaultdict
 from textwrap import wrap
 from curses.panel import new_panel, top_panel, update_panels
 
+from sys import stderr
+from conversation import Conversation
+
 class Window(object):
   AUTO_SCROLL = 0
   def __init__(self, callback=None, win=None, parent=None, pos=AUTO_SCROLL):
@@ -13,7 +16,7 @@ class Window(object):
     # If there is a parent, ask it for our window
     self.parent = parent
     if parent:
-      self.win = parent._subwin()
+      self.win = parent._derwin()
 
     # just kidding, we might have also been given a window
     if win:
@@ -37,7 +40,11 @@ class Window(object):
   def update(self):
     (rows, cols) = self.getmaxyx()
 
-    hist = self.callback()
+    if self.callback:
+      hist = self.callback()
+    else:
+      hist = []
+
     if self.pos != Window.AUTO_SCROLL:
       hist = self.history[:pos]
 
@@ -49,18 +56,20 @@ class Window(object):
     for (row, line) in enumerate(lines):
       self.win.addstr(row, 0, line) 
       self.win.clrtoeol()
+    self.win.noutrefresh()
 
-    if self.parent:
-      self.parent.update()
+    # if we are the root window, do the update
+    if not self.parent:
+      curses.doupdate()
 
   def getmaxyx(self):
     return self.win.getmaxyx()
 
-  def _subwin(self):
-    """ Make a subwindow of this one that is the "size" it should be (i.e.
+  def _derwin(self):
+    """ Make a derwindow of this one that is the "size" it should be (i.e.
     self.getmaxyx()) """
     (y, x) = self.getmaxyx()
-    return self.win.subwin(y, x, 0, 0)
+    return self.win.derwin(y, x, 0, 0)
 
 class DividableWin(Window):
   VERTICAL = "v"
@@ -149,21 +158,25 @@ class DividableWin(Window):
 
     # for the intermediate windows, make their sizes as calculated
     for w in dsize_wins[:-1]:
-      w.win.mvwin(cur_y, cur_x)
       if self.splitdir == DividableWin.VERTICAL:
         w.win.resize(y, inc)
         cur_x += inc
       else:
         w.win.resize(inc, x)
         cur_y += inc
+      w.win.mvwin(cur_y, cur_x)
 
     # for the last window, make it fell the rest of the canvas
     w = dsize_wins[-1]
-    w.win.mvwin(cur_y, cur_x)
     if self.splitdir == DividableWin.VERTICAL:
       w.win.resize(y, pixels_left - cur_x)
     else:
       w.win.resize(pixels_left - cur_y, x)
+    w.win.mvwin(cur_y, cur_x)
+
+    # now resize our children, in case they have changed size
+    for c in self.children:
+      c._resize()
 
   def _addwin(self, win):
     # if we're "splitting", we need to make two windows initially, since we're
@@ -173,6 +186,8 @@ class DividableWin(Window):
 
       # pass on our duties
       w.callback = self.callback
+      w.callback.add("passing on duties")
+      # debug:
       self.callback = None
       self.children.append(w)
       self.active = 0
@@ -191,8 +206,8 @@ class DividableWin(Window):
     assert len(self.children) == 0
 
     # make the curses windows
-    l = self.win.subwin(y, left_cell_width, 0, 0)
-    r = self.win.subwin(y, x - left_cell_width, 0, left_cell_width)
+    l = self.win.derwin(y, left_cell_width, 0, 0)
+    r = self.win.derwin(y, x - left_cell_width, 0, left_cell_width)
 
     # now set up the borders
     bl = DividableWin(win=l, parent=self, static_size=True)
@@ -224,8 +239,8 @@ class DividableWin(Window):
     assert len(self.children) == 0
 
     # make the curses windows
-    t = self.win.subwin(top_cell_length, x, 0, 0)
-    b = self.win.subwin(y - top_cell_length, x, top_cell_length, 0)
+    t = self.win.derwin(top_cell_length, x, 0, 0)
+    b = self.win.derwin(y - top_cell_length, x, top_cell_length, 0)
     
     # now set up the borders
     bt = BorderWin(win=t, parent=self, border=["bottom"], static_size=True)
@@ -242,7 +257,7 @@ class DividableWin(Window):
   def vsp(self):
     """ Split the current window vertically. """
     if self.splitdir and self.splitdir != DividableWin.VERTICAL:
-      return self.active.sp()
+      return self.children[self.active].sp()
     self.splitdir = DividableWin.VERTICAL
 
     w = BorderWin(parent=self, borders=["top"])
@@ -346,7 +361,6 @@ if __name__ == '__main__':
       p = top_panel()
       p.show()
       update_panels()
-      curses.doupdate()
 
       stdscr.getch()
       p.bottom()
@@ -360,16 +374,23 @@ if __name__ == '__main__':
     stdscr.getch()
 
   def h(stdscr):
-    c = lambda: ["divide four ways"]
+    c = Conversation()
+    c.add("divide four ways")
+    c.add("second line")
     w = DividableWin(callback=c, win=stdscr)
     w.update()
     stdscr.getch()
-    w.sp()
+    new_w = w.sp()
+    c.add("after sp() call")
+    new_w.callback = Conversation()
+    new_w.callback.add("new_w")
+    w.update()
     stdscr.getch()
-    w.vsp()
-    stdscr.getch()
+    # w.vsp()
+    # w.update()
+    # stdscr.getch()
 
-  tests = [f,g,h]
+  tests = [g,h]
   for test in tests:
     def clear(stdscr):
       test(stdscr)
