@@ -23,8 +23,6 @@ class Window(object):
       self.win = win
 
     self.pos = pos
-    if not callback:
-      callback = lambda: []
     self.callback = callback
 
   def scroll_up(self):
@@ -39,6 +37,9 @@ class Window(object):
 
   def update(self):
     (rows, cols) = self.getmaxyx()
+
+    assert ((len(self.children) == 0 and self.callback) or
+            (len(self.children) != 0 and not self.callback))
 
     if self.callback:
       hist = self.callback()
@@ -227,8 +228,6 @@ class DividableWin(Window):
     """ Split the current window. """
     if self.splitdir and self.splitdir != DividableWin.HORIZONTAL:
       w = self.children[active].sp()
-      self.children[self.active].children[0].callback = self.callback
-      self.callback = None
       return w
     self.splitdir = DividableWin.HORIZONTAL
 
@@ -264,8 +263,6 @@ class DividableWin(Window):
     if self.splitdir and self.splitdir != DividableWin.VERTICAL:
       active = self.children[self.active]
       w = active.vsp()
-      active.children[0].callback = self.callback
-      self.callback = None
       return w
     self.splitdir = DividableWin.VERTICAL
 
@@ -401,7 +398,7 @@ if __name__ == '__main__':
     c = Conversation()
     c.add("divide four ways")
 
-    w = DividableWin(callback=c, win=stdscr)
+    w = DividableWin(callback=c, win=stdscr.derwin(0,0))
     w.update()
     stdscr.getch()
     new_w = w.sp()
@@ -409,7 +406,11 @@ if __name__ == '__main__':
     new_w.callback.add("new_w")
     w.children[0].callback.add("hi to upper left from new_w")
 
+    ul = w.children[0]
+
+    assert ul.callback
     assert w.children[0].callback is c
+    assert len(c()) == 2
 
     w.update()
     stdscr.getch()
@@ -430,7 +431,7 @@ if __name__ == '__main__':
     w.update()
     stdscr.getch()
 
-  tests = [g,h]
+  tests = [h] # g
   for test in tests:
     def clear(stdscr):
       test(stdscr)
