@@ -60,7 +60,7 @@ class Window(object):
     """ Make a subwindow of this one that is the "size" it should be (i.e.
     self.getmaxyx()) """
     (y, x) = self.getmaxyx()
-    return self.win.subwin(y, x)
+    return self.win.subwin(y, x, 0, 0)
 
 class DividableWin(Window):
   VERTICAL = "v"
@@ -82,25 +82,25 @@ class DividableWin(Window):
 
   def wup(self):
     if self.splitdir == DividableWin.HORIZONTAL:
-      self.active = (self.active - 1) % len(children)
+      self.active = (self.active - 1) % len(self.children)
     else:
       self.children[active].wup()
 
   def wdn(self):
     if self.splitdir == DividableWin.HORIZONTAL:
-      self.active = (self.active + 1) % len(children)
+      self.active = (self.active + 1) % len(self.children)
     else:
       self.children[active].wdn()
 
   def wlf(self):
     if self.splitdir == DividableWin.VERTICAL:
-      self.active = (self.active - 1) % len(children)
+      self.active = (self.active - 1) % len(self.children)
     else:
       self.children[active].wlf()
 
   def wrt(self):
     if self.splitdir == DividableWin.VERTICAL:
-      self.active = (self.active + 1) % len(children)
+      self.active = (self.active + 1) % len(self.children)
     else:
       self.children[active].wrt()
 
@@ -120,8 +120,15 @@ class DividableWin(Window):
       return result
 
     p = partition(lambda w: w.static_size, self.children)
-    ssize_wins = p[True]
-    dsize_wins = p[False]
+    ssize_wins, dsize_wins = [], []
+    try:
+      ssize_wins = p[True]
+    except KeyError:
+      pass
+    try:
+      dsize_wins = p[False]
+    except KeyError:
+      pass
 
     def size_getter(w):
       (wy, wx) = w.getmaxyx()
@@ -129,7 +136,7 @@ class DividableWin(Window):
         return wx
       else:
         return wy
-    diff = sum(map(static_size_getter, ssize_wins))
+    diff = sum(map(size_getter, ssize_wins))
 
     if self.splitdir == DividableWin.VERTICAL:
       pixels_left = x - diff
@@ -161,7 +168,7 @@ class DividableWin(Window):
   def _addwin(self, win):
     # if we're "splitting", we need to make two windows initially, since we're
     # acting as the first child right now
-    if len(children) == 0:
+    if len(self.children) == 0:
       w = DividableWin(parent=self)
 
       # pass on our duties
