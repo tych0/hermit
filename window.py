@@ -42,6 +42,7 @@ class Window(object):
 
     if self.callback:
       hist = self.callback()
+      self.win.clear()
     else:
       hist = []
 
@@ -56,6 +57,9 @@ class Window(object):
     for (row, line) in enumerate(lines):
       self.win.addstr(row, 0, line) 
       self.win.clrtoeol()
+
+    # swap the virtual buffers for the next call to doupdate() (but don't
+    # actually redraw the physical screen, hopefully saving some flicker)
     self.win.noutrefresh()
 
     # if we are the root window, do the update
@@ -165,7 +169,6 @@ class DividableWin(Window):
         w.win.resize(inc, x)
         cur_y += inc
       w.win.mvwin(cur_y, cur_x)
-      w.win.clear()
 
     # for the last window, make it fell the rest of the canvas
     w = dsize_wins[-1]
@@ -174,7 +177,6 @@ class DividableWin(Window):
     else:
       w.win.resize(pixels_left - cur_y, x)
     w.win.mvwin(cur_y, cur_x)
-    w.win.clear()
 
     # now resize our children, in case they have changed size
     for c in self.children:
@@ -211,7 +213,7 @@ class DividableWin(Window):
 
     # now set up the borders
     bl = DividableWin(win=l, parent=self, static_size=True)
-    br = BorderWin(win=r, parent=self, border=["left"])
+    br = DividableWin(win=r, parent=self)
 
     # kill our callback since presumably the children will be painting
     self.callback = None
@@ -224,11 +226,14 @@ class DividableWin(Window):
   def sp(self):
     """ Split the current window. """
     if self.splitdir and self.splitdir != DividableWin.HORIZONTAL:
-      return self.active.sp()
+      w = self.children[active].sp()
+      self.children[self.active].children[0].callback = self.callback
+      self.callback = None
+      return w
     self.splitdir = DividableWin.HORIZONTAL
 
     # make the new window 
-    w = BorderWin(parent=self, borders=["top"])
+    w = DividableWin(parent=self) 
     self._addwin(w)
     return w
 
@@ -257,15 +262,20 @@ class DividableWin(Window):
   def vsp(self):
     """ Split the current window vertically. """
     if self.splitdir and self.splitdir != DividableWin.VERTICAL:
-      return self.children[self.active].vsp()
+      active = self.children[self.active]
+      w = active.vsp()
+      active.children[0].callback = self.callback
+      self.callback = None
+      return w
     self.splitdir = DividableWin.VERTICAL
 
-    w = BorderWin(parent=self, borders=["left"])
+    w = DividableWin(parent=self)
     self._addwin(w)
     return w
 
 class BorderWin(DividableWin):
-  # only support bottom and left borders for now
+  # These are what the arguments to border() should be to draw a particular
+  # border.
   BORDER_SPEC = {
     "left"   : { "ls" : 0,
                  "bl" : '*',
@@ -279,32 +289,44 @@ class BorderWin(DividableWin):
                  "tl" : '*',
                  "tr" : '*',
                },
+    "right"  : { "rs" : 0,
+                 "tr" : '*',
+                 "br" : '*',
+               },
   }
 
+  # How does drawing a particular border affect the window size? In order of:
+  #  (min_y, min_x, max_y, max_x)
   MOD_SPEC = {
-    "left"   : lambda y, x: (y, x-1),
-    "bottom" : lambda y, x: (y-1, x),
-    "top"    : lambda y, x: (y-1, x),
+    "left"   : lambda min_y, min_x, max_y, max_x: (min_y, min_x+1, max_y, max_x),
+    "right"  : lambda min_y, min_x, max_y, max_x: (min_y, min_x, max_y, max_x-1),
+    "bottom" : lambda min_y, min_x, max_y, max_x: (min_y, min_x, max_y-1, max_x),
+    "top"    : lambda min_y, min_x, max_y, max_x: (min_y+1, min_x, max_y, max_x),
   }
 
   def __init__(self, borders=None, **kwarg):
     DividableWin.__init__(self, **kwarg)
     d = defaultdict(lambda: ' ')
-    self.xmod, self.ymod = 0, 0
+    min_y, min_x = 0, 0
+    max_y, max_x = self.win.getmaxyx()
     if borders:
       for border in borders:
         d.update(BorderWin.BORDER_SPEC[border])
-        self.ymod, self.xmod = BorderWin.MOD_SPEC[border](self.ymod, self.xmod)
+        min_y, min_x, max_y, max_x = \
+          BorderWin.MOD_SPEC[border](min_y, min_x, max_y, max_x)
     self._b = d
 
-  def getmaxyx(self):
-    (y, x) = self.win.getmaxyx()
-    # leave room for the status bar
-    return (y + self.ymod, x + self.xmod)
+    # A little window hackery. We really want self.win to be the window that we
+    # draw text on, and we want users to not have to worry about the border, so
+    # we fake that self.win is the window we were given by making the window we
+    # were given self.root and reallocating self.win.
+    self.root = self.win
+    self.win = self.root.derwin(max_y-1, max_x-1, min_y, min_x)
 
   def update(self):
-    self.win.border(self._b['ls'], self._b['rs'], self._b['ts'], self._b['bs'],
-                    self._b['tl'], self._b['tr'], self._b['bl'], self._b['br'])
+    self.root.border(self._b['ls'], self._b['rs'], self._b['ts'], self._b['bs'],
+                     self._b['tl'], self._b['tr'], self._b['bl'], self._b['br'])
+    self.root.noutrefresh()
     DividableWin.update(self)
 
 class StackWin(Window):
@@ -378,17 +400,33 @@ if __name__ == '__main__':
   def h(stdscr):
     c = Conversation()
     c.add("divide four ways")
+
     w = DividableWin(callback=c, win=stdscr)
     w.update()
     stdscr.getch()
     new_w = w.sp()
     new_w.callback = Conversation()
     new_w.callback.add("new_w")
+    w.children[0].callback.add("hi to upper left from new_w")
+
+    assert w.children[0].callback is c
+
     w.update()
     stdscr.getch()
     new_w2 = w.vsp()
     new_w2.callback = Conversation()
+    new_w.callback.add("hi from new_w2")
     new_w2.callback.add("new_w2")
+
+    assert w.children[0].children[1].callback is new_w2.callback
+
+    w.update()
+    stdscr.getch()
+
+    w.children[0].children[0].callback.add("hello upper left")
+    w.children[1].callback.add("hello bottom")
+    w.children[0].children[1].callback.add("hello upper right")
+
     w.update()
     stdscr.getch()
 
