@@ -165,6 +165,7 @@ class DividableWin(Window):
         w.win.resize(inc, x)
         cur_y += inc
       w.win.mvwin(cur_y, cur_x)
+      w.win.clear()
 
     # for the last window, make it fell the rest of the canvas
     w = dsize_wins[-1]
@@ -173,6 +174,7 @@ class DividableWin(Window):
     else:
       w.win.resize(pixels_left - cur_y, x)
     w.win.mvwin(cur_y, cur_x)
+    w.win.clear()
 
     # now resize our children, in case they have changed size
     for c in self.children:
@@ -186,8 +188,6 @@ class DividableWin(Window):
 
       # pass on our duties
       w.callback = self.callback
-      w.callback.add("passing on duties")
-      # debug:
       self.callback = None
       self.children.append(w)
       self.active = 0
@@ -228,7 +228,7 @@ class DividableWin(Window):
     self.splitdir = DividableWin.HORIZONTAL
 
     # make the new window 
-    w = BorderWin(parent=self, borders=["left"])
+    w = BorderWin(parent=self, borders=["top"])
     self._addwin(w)
     return w
 
@@ -257,10 +257,10 @@ class DividableWin(Window):
   def vsp(self):
     """ Split the current window vertically. """
     if self.splitdir and self.splitdir != DividableWin.VERTICAL:
-      return self.children[self.active].sp()
+      return self.children[self.active].vsp()
     self.splitdir = DividableWin.VERTICAL
 
-    w = BorderWin(parent=self, borders=["top"])
+    w = BorderWin(parent=self, borders=["left"])
     self._addwin(w)
     return w
 
@@ -269,6 +269,7 @@ class BorderWin(DividableWin):
   BORDER_SPEC = {
     "left"   : { "ls" : 0,
                  "bl" : '*',
+                 "tl" : '*',
                },
     "bottom" : { "bs" : 0,
                  "bl" : '*',
@@ -283,6 +284,7 @@ class BorderWin(DividableWin):
   MOD_SPEC = {
     "left"   : lambda y, x: (y, x-1),
     "bottom" : lambda y, x: (y-1, x),
+    "top"    : lambda y, x: (y-1, x),
   }
 
   def __init__(self, borders=None, **kwarg):
@@ -376,19 +378,19 @@ if __name__ == '__main__':
   def h(stdscr):
     c = Conversation()
     c.add("divide four ways")
-    c.add("second line")
     w = DividableWin(callback=c, win=stdscr)
     w.update()
     stdscr.getch()
     new_w = w.sp()
-    c.add("after sp() call")
     new_w.callback = Conversation()
     new_w.callback.add("new_w")
     w.update()
     stdscr.getch()
-    # w.vsp()
-    # w.update()
-    # stdscr.getch()
+    new_w2 = w.vsp()
+    new_w2.callback = Conversation()
+    new_w2.callback.add("new_w2")
+    w.update()
+    stdscr.getch()
 
   tests = [g,h]
   for test in tests:
