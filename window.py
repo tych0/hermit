@@ -18,7 +18,8 @@ class Window(object):
     if parent:
       self.win = parent._derwin()
 
-    # just kidding, we might have also been given a window
+    # just kidding, we might have also been given a window, which should
+    # override the one we got from our parent
     if win:
       self.win = win
 
@@ -41,8 +42,6 @@ class Window(object):
     if self.callback:
       hist = self.callback()
       self.win.clear()
-      if hist[0].startswith("divide"):
-        assert rows > 0
     else:
       hist = []
 
