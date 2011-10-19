@@ -6,9 +6,6 @@ from collections import defaultdict
 from textwrap import wrap
 from curses.panel import new_panel, top_panel, update_panels
 
-from sys import stderr
-from conversation import Conversation
-
 class Window(object):
   AUTO_SCROLL = 0
   def __init__(self, callback=None, win=None, parent=None, pos=AUTO_SCROLL):
@@ -366,6 +363,9 @@ class StackWin(Window):
       self.panelstack = self.panelstack[-1] + self.panelstack[:-1]
 
 if __name__ == '__main__':
+
+  from conversation import Conversation
+
   def f(stdscr):
     panels = []
     windows = []
