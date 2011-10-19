@@ -24,10 +24,6 @@ class VimBox(object):
     self.textwin.timeout(blocktime)
     self.cmdwin = self.win.derwin(1, x, y-1, 0)
 
-    self.win.leaveok(False)
-    self.textwin.leaveok(False)
-    self.cmdwin.leaveok(False)
-
     self.textbox = _Textbox(self.textwin, insert_mode=True)
     self.textbox.stripspaces = True
 
@@ -38,7 +34,10 @@ class VimBox(object):
     self.update()
 
   def update(self, updater=False):
-    (cursory, cursorx) = self.win.getyx()
+    if self.insertmode:
+      (cursory, cursorx) = self.textwin.getyx()
+    else:
+      (cursory, cursorx) = self.cmdwin.getyx()
 
     if updater:
       self.updater()
@@ -46,12 +45,16 @@ class VimBox(object):
     if self.insertmode:
       self.cmdwin.clear()
       self.cmdwin.addstr(0, 0, "-- INSERT --")
+      self.textwin.move(cursory, cursorx)
+      self.textwin.cursyncup()
+    else:
+      self.cmdwin.move(cursory, cursorx)
+      self.cmdwin.cursyncup()
 
-    self.win.move(cursory, cursorx)
-    self.win.cursyncup()
     self.win.refresh()
 
   def __call__(self):
+    self.textwin.notimeout(0)
     def callback(ch):
       self.update()
       if ch == curses.ascii.ESC:
@@ -79,10 +82,25 @@ class VimBox(object):
 
     while True:
       ch = self.cmdwin.getch()
-      if ch == 'i':
+      self.inputer('got: ' + chr(ch))
+
+      (y, x) = self.cmdwin.getyx()
+
+      if curses.ascii.isprint(ch) and x > 0:
+        self.cmdwin.addch(ch)
+      elif ch == ord(':') and x == 0:
+        self.cmdwin.addch(ch)
+      elif ch == ord('i'):
         break
-      self.inputer('Got: ' + chr(ch))
-      self.update()
+      elif ch in (curses.ascii.BS, curses.KEY_BACKSPACE, 0x7f):
+        if x > 0:
+          self.cmdwin.move(y, x-1)
+          self.cmdwin.delch()
+      elif ch == curses.ascii.NL:
+        cs = [chr(curses.ascii.ascii(self.cmdwin.inch(y, i))) for i in range(x)]
+        self.inputer('command: ' + ''.join(cs))
+        self.cmdwin.clear()
+      self.update(True)
     
     self.insertmode = True
     self.update()
