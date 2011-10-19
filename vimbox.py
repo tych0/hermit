@@ -71,12 +71,13 @@ class VimBox(object):
 
     self.insertmode = False
     self.cmdwin.clear()
+    self.win.move(cursory, cursorx)
     self.update()
 
     while True:
-      ch = self.cmdwin.getch()
+      ch = self.textwin.getch()
       if ch > 0:
-        self.inputer('got: ' + chr(ch))
+        self.inputer('got: ' + str(ch))
 
       (y, x) = self.cmdwin.getyx()
 
@@ -91,8 +92,26 @@ class VimBox(object):
       # silent commands
       elif ch == ord('i'):
         break
+      elif ch == ord('x'):
+        self.textbox.do_command(curses.ascii.EOT)
+
+      # hjkl
       elif ch == ord('h'):
-        self.win.move(cursory, cursorx-1)
+        if cursorx > 0:
+          cursorx -= 1
+        self.textwin.move(cursory, cursorx)
+      elif ch == ord('l'):
+        if cursorx < self.textwin.getmaxyx()[1]-1:
+          cursorx += 1
+        self.textwin.move(cursory, cursorx)
+      elif ch == ord('j'):
+        if cursory < self.textwin.getmaxyx()[0]-1:
+          cursory += 1
+        self.textwin.move(cursory, cursorx)
+      elif ch == ord('k'):
+        if cursory > 0:
+          cursory -= 1
+        self.textwin.move(cursory, cursorx)
 
       # special keys
       elif ch in (curses.ascii.BS, curses.KEY_BACKSPACE, 0x7f):
