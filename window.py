@@ -38,12 +38,11 @@ class Window(object):
   def update(self):
     (rows, cols) = self.getmaxyx()
 
-    assert ((len(self.children) == 0 and self.callback) or
-            (len(self.children) != 0 and not self.callback))
-
     if self.callback:
       hist = self.callback()
       self.win.clear()
+      if hist[0].startswith("divide"):
+        assert rows > 0
     else:
       hist = []
 
@@ -165,11 +164,12 @@ class DividableWin(Window):
     for w in dsize_wins[:-1]:
       if self.splitdir == DividableWin.VERTICAL:
         w.win.resize(y, inc)
+        w.win.mvwin(cur_y, cur_x)
         cur_x += inc
       else:
         w.win.resize(inc, x)
+        w.win.mvwin(cur_y, cur_x)
         cur_y += inc
-      w.win.mvwin(cur_y, cur_x)
 
     # for the last window, make it fell the rest of the canvas
     w = dsize_wins[-1]
@@ -404,13 +404,7 @@ if __name__ == '__main__':
     new_w = w.sp()
     new_w.callback = Conversation()
     new_w.callback.add("new_w")
-    w.children[0].callback.add("hi to upper left from new_w")
-
-    ul = w.children[0]
-
-    assert ul.callback
-    assert w.children[0].callback is c
-    assert len(c()) == 2
+    c.add("hi to upper left from new_w")
 
     w.update()
     stdscr.getch()
@@ -418,8 +412,6 @@ if __name__ == '__main__':
     new_w2.callback = Conversation()
     new_w.callback.add("hi from new_w2")
     new_w2.callback.add("new_w2")
-
-    assert w.children[0].children[1].callback is new_w2.callback
 
     w.update()
     stdscr.getch()
