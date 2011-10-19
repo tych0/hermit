@@ -34,10 +34,7 @@ class VimBox(object):
     self.update()
 
   def update(self, updater=False):
-    if self.insertmode:
-      (cursory, cursorx) = self.textwin.getyx()
-    else:
-      (cursory, cursorx) = self.cmdwin.getyx()
+    (cursory, cursorx) = self.textwin.getyx()
 
     if updater:
       self.updater()
@@ -45,11 +42,8 @@ class VimBox(object):
     if self.insertmode:
       self.cmdwin.clear()
       self.cmdwin.addstr(0, 0, "-- INSERT --")
-      self.textwin.move(cursory, cursorx)
-      self.textwin.cursyncup()
-    else:
-      self.cmdwin.move(cursory, cursorx)
-      self.cmdwin.cursyncup()
+    self.textwin.move(cursory, cursorx)
+    self.textwin.cursyncup()
 
     self.win.refresh()
 
@@ -81,24 +75,37 @@ class VimBox(object):
 
     while True:
       ch = self.cmdwin.getch()
-      self.inputer('got: ' + chr(ch))
+      if ch > 0:
+        self.inputer('got: ' + chr(ch))
 
       (y, x) = self.cmdwin.getyx()
 
-      if curses.ascii.isprint(ch) and x > 0:
+      # are we typing?
+      if ch < 0:
+        pass
+      elif curses.ascii.isprint(ch) and x > 0:
         self.cmdwin.addch(ch)
       elif ch == ord(':') and x == 0:
         self.cmdwin.addch(ch)
+
+      # silent commands
       elif ch == ord('i'):
         break
+      elif ch == ord('h'):
+        self.win.move(cursory, cursorx-1)
+
+      # special keys
       elif ch in (curses.ascii.BS, curses.KEY_BACKSPACE, 0x7f):
         if x > 0:
           self.cmdwin.move(y, x-1)
           self.cmdwin.delch()
+        else:
+          self.cmdwin.move(0,0)
       elif ch == curses.ascii.NL:
         cs = [chr(curses.ascii.ascii(self.cmdwin.inch(y, i))) for i in range(x)]
-        self.inputer('command: ' + ''.join(cs))
         self.cmdwin.clear()
+
+        self.inputer('command: ' + ''.join(cs))
       self.update(True)
     
     self.insertmode = True
