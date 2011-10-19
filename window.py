@@ -46,7 +46,7 @@ class Window(object):
       hist = self.history[:pos]
 
     # Wrap each message correctly
-    lines = list(itertools.chain(*map(lambda s: wrap(s, rows), hist)))
+    lines = list(itertools.chain(*map(lambda s: wrap(s, cols), hist)))
     # we can only print up to rows number of lines
     lines = lines[-rows:]
 
