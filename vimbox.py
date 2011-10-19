@@ -54,7 +54,6 @@ class VimBox(object):
     self.win.refresh()
 
   def __call__(self):
-    self.textwin.notimeout(0)
     def callback(ch):
       self.update()
       if ch == curses.ascii.ESC:
