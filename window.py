@@ -58,10 +58,6 @@ class Window(object):
     # actually redraw the physical screen, hopefully saving some flicker)
     self.win.noutrefresh()
 
-    # if we are the root window, do the update
-    if not self.parent:
-      curses.doupdate()
-
   def getmaxyx(self):
     return self.win.getmaxyx()
 
