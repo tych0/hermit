@@ -85,6 +85,13 @@ class DividableWin(Window):
       child.update()
     Window.update(self)
 
+  def getactive(self):
+    """ Recursively find the active window. """
+    if len(self.children == 0):
+      return self
+    else:
+      return self.children[active].getactive()
+
   def wup(self):
     if self.splitdir == DividableWin.HORIZONTAL:
       self.active = (self.active - 1) % len(self.children)
