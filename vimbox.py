@@ -17,12 +17,15 @@ class _Textbox(Textbox):
     return Textbox.do_command(self, ch)
 
 class VimBox(object):
-  def __init__(self, win, updater, inputer, blocktime=500):
+  def __init__(self, win, updater, inputer, root, blocktime=500):
     self.win = win
     (y, x) = self.win.getmaxyx()
     self.textwin = self.win.derwin(y-1, x, 0, 0)
     self.textwin.timeout(blocktime)
     self.cmdwin = self.win.derwin(1, x, y-1, 0)
+
+    # TODO: refactor this so that we don't have to know about windows
+    self.root = root
 
     self.textbox = _Textbox(self.textwin, insert_mode=True)
     self.textbox.stripspaces = True
@@ -113,6 +116,19 @@ class VimBox(object):
           cursory -= 1
         self.textwin.move(cursory, cursorx)
 
+      # switch windows
+      elif ch == 23: # ^W
+        ch = self.textwin.getch()
+        self.inputer('in ^W got: ' + chr(ch))
+        if ch == ord('h'):
+          self.root.wlf()
+        elif ch == ord('j'):
+          self.root.wdn()
+        elif ch == ord('k'):
+          self.root.wup()
+        elif ch == ord('l'):
+          self.root.wrt()
+
       # special keys
       elif ch in (curses.ascii.BS, curses.KEY_BACKSPACE, 0x7f):
         if x > 0:
@@ -121,10 +137,23 @@ class VimBox(object):
         else:
           self.cmdwin.move(0,0)
       elif ch == curses.ascii.NL:
-        cs = [chr(curses.ascii.ascii(self.cmdwin.inch(y, i))) for i in range(x)]
+        cs = ''.join([chr(curses.ascii.ascii(self.cmdwin.inch(y, i))) for i in range(x)])
         self.cmdwin.clear()
 
-        self.inputer('command: ' + ''.join(cs))
+        self.inputer('got command (len %d): %s' % (len(cs), cs))
+
+        if cs == ':sp':
+          import containers
+          self.root.sp().callback = containers.TextContainer()
+        elif cs == ':vsp':
+          self.root.vsp()
+        elif cs == ':length':
+          self.inputer('root has %d children' % len(self.root.children))
+        elif cs == ':active':
+          n = self.root.children.index(self.root.getactive())
+          self.inputer("active is root's %dth child" % n)
+          self.inputer("root.active is %d" % self.root.active)
+
       self.update(True)
     
     self.insertmode = True

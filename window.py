@@ -87,34 +87,34 @@ class DividableWin(Window):
 
   def getactive(self):
     """ Recursively find the active window. """
-    if len(self.children == 0):
+    if len(self.children) == 0:
       return self
     else:
-      return self.children[active].getactive()
+      return self.children[self.active].getactive()
 
   def wup(self):
     if self.splitdir == DividableWin.HORIZONTAL:
       self.active = (self.active - 1) % len(self.children)
     else:
-      self.children[active].wup()
+      self.children[self.active].wup()
 
   def wdn(self):
     if self.splitdir == DividableWin.HORIZONTAL:
       self.active = (self.active + 1) % len(self.children)
     else:
-      self.children[active].wdn()
+      self.children[self.active].wdn()
 
   def wlf(self):
     if self.splitdir == DividableWin.VERTICAL:
       self.active = (self.active - 1) % len(self.children)
     else:
-      self.children[active].wlf()
+      self.children[self.active].wlf()
 
   def wrt(self):
     if self.splitdir == DividableWin.VERTICAL:
       self.active = (self.active + 1) % len(self.children)
     else:
-      self.children[active].wrt()
+      self.children[self.active].wrt()
 
   def _resize(self):
     """ Resize all the windows (and their children) appropriately. This
