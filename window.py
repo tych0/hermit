@@ -360,7 +360,7 @@ class StackWin(Window):
 
 if __name__ == '__main__':
 
-  from conversation import Conversation
+  from containers import TextContainer
 
   def f(stdscr):
     panels = []
@@ -387,38 +387,44 @@ if __name__ == '__main__':
     c = lambda: ["you should see a border on the bottom and left"]
     w = BorderWin(callback=c, borders=["left", "bottom"], win=stdscr)
     w.update()
+    curses.doupdate()
     stdscr.getch()
 
   def h(stdscr):
-    c = Conversation()
-    c.add("divide four ways")
+    c = TextContainer()
+    c.userinput("divide four ways")
 
     w = DividableWin(callback=c, win=stdscr.derwin(0,0))
     w.update()
+    curses.doupdate()
     stdscr.getch()
     new_w = w.sp()
-    new_w.callback = Conversation()
-    new_w.callback.add("new_w")
-    c.add("hi to upper left from new_w")
+    new_w.callback = TextContainer()
+    new_w.callback.userinput("new_w")
+    c.userinput("hi to upper left from new_w")
 
     w.update()
+    curses.doupdate()
     stdscr.getch()
+    curses.doupdate()
     new_w2 = w.vsp()
-    new_w2.callback = Conversation()
-    new_w.callback.add("hi from new_w2")
-    new_w2.callback.add("new_w2")
+    new_w2.callback = TextContainer()
+    new_w.callback.userinput("hi from new_w2")
+    new_w2.callback.userinput("new_w2")
 
     w.update()
+    curses.doupdate()
     stdscr.getch()
 
-    w.children[0].children[0].callback.add("hello upper left")
-    w.children[1].callback.add("hello bottom")
-    w.children[0].children[1].callback.add("hello upper right")
+    w.children[0].children[0].callback.userinput("hello upper left")
+    w.children[1].callback.userinput("hello bottom")
+    w.children[0].children[1].callback.userinput("hello upper right")
 
     w.update()
+    curses.doupdate()
     stdscr.getch()
 
-  tests = [h] # g
+  tests = [g,h] # g
   for test in tests:
     def clear(stdscr):
       test(stdscr)

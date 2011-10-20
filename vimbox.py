@@ -135,17 +135,17 @@ class VimBox(object):
     self.win.refresh()
 
 if __name__ == '__main__':
-  from conversation import Conversation
+  from containers import TextContainer
   from window import DividableWin
 
   def f(stdscr):
     (y, x) = stdscr.getmaxyx()
     outp = stdscr.derwin(y - 5, x, 0, 0)
     wout = DividableWin(win=outp)
-    wout.callback = Conversation()
+    wout.callback = TextContainer()
 
     inp = stdscr.derwin(5, x, y - 5, 0)
-    vb = VimBox(inp, wout.update, wout.callback.add)
+    vb = VimBox(inp, wout.update, wout.callback.userinput)
 
     vb()
   
