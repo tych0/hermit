@@ -116,6 +116,16 @@ class DividableWin(Window):
     else:
       self.children[self.active].wrt()
 
+  def closewin(self):
+    if len(self.children) == 0:
+      return True
+    else:
+      remove = self.children[self.active].closewin()
+      if remove:
+        self.children.pop(self.active)
+        self.active = 0 if self.active == 0 else self.active - 1
+      return False
+
   def _resize(self):
     """ Resize all the windows (and their children) appropriately. This
     includes respecting things that are statically sized. """
